@@ -7,7 +7,28 @@ import { Euler } from '../../../../src/math/Euler.js';
 import { Quaternion } from '../../../../src/math/Quaternion.js';
 import * as MathUtils from '../../../../src/math/MathUtils.js';
 import { eps } from '../../utils/math-constants.js';
+import { Vector4 } from '../../../../src/math/Vector4.js';
 
+function vectorEquals( a, b, tolerance ) {
+
+	tolerance = tolerance || 0.0001;
+	const _a = a.toArray();
+	const _b = b.toArray();
+	if ( _a.length != _b.length ) {
+
+		return false;
+
+	}
+
+	for ( let i = 0; i < _a.length; i ++ ) {
+
+		if ( Math.abs( _a[ i ] - _b[ i ] ) > tolerance ) return false;
+
+	}
+
+	return true;
+
+}
 
 function matrixEquals4( a, b, tolerance ) {
 
@@ -506,6 +527,133 @@ export default QUnit.module( 'Maths', () => {
 
 			d.setPosition( - 1, - 2, - 3 );
 			assert.ok( matrixEquals4( d, e ), 'Passed!' );
+
+		} );
+
+		QUnit.test( 'setScale', ( assert ) => {
+
+			const a = new Matrix4().identity();
+			const scale = new Vector3( 2, 4, 8 );
+
+			a.setScale( scale );
+
+			const v = new Vector3().setFromMatrixScale( a );
+
+			assert.ok( vectorEquals( v, scale ), 'setScale(Vector3) Passed!' );
+
+			a.setScale( 2, 4, 8 );
+
+			const v2 = new Vector3().setFromMatrixScale( a );
+			assert.ok( vectorEquals( v2, scale ), 'setScale(number, number, number) Passed!' );
+
+		} );
+
+		QUnit.test( 'setRotation', ( assert ) => {
+
+			// Test 1: Identity matrix with identity quaternion
+			const a = new Matrix4().identity();
+			const qIdentity = new Quaternion();
+			a.setRotation( qIdentity );
+			assert.ok( matrixEquals4( a, new Matrix4().identity() ), 'Identity rotation preserves identity matrix' );
+
+			// Test 2: Rotation with unit scale should match makeRotationFromQuaternion
+			const q90z = new Quaternion().setFromAxisAngle( new Vector3( 0, 0, 1 ), Math.PI / 2 );
+			const m1 = new Matrix4().identity();
+			const m2 = new Matrix4().makeRotationFromQuaternion( q90z );
+			m1.setRotation( q90z );
+			assert.ok( matrixEquals4( m1, m2 ), 'setRotation with identity scale matches makeRotationFromQuaternion' );
+
+			// Test 3: Rotation should preserve scale
+			const scale = new Vector3( 2, 3, 4 );
+			const m3 = new Matrix4().makeScale( scale.x, scale.y, scale.z );
+			const q45y = new Quaternion().setFromAxisAngle( new Vector3( 0, 1, 0 ), Math.PI / 4 );
+			m3.setRotation( q45y );
+
+			const resultScale = new Vector3().setFromMatrixScale( m3 );
+			assert.ok( vectorEquals( resultScale, scale ), 'setRotation preserves scale' );
+
+			// Test 4: Rotation with scaled matrix
+			const m4 = new Matrix4().makeScale( 2, 3, 4 );
+			const q180x = new Quaternion().setFromAxisAngle( new Vector3( 1, 0, 0 ), Math.PI );
+			m4.setRotation( q180x );
+
+			// Check that scale is preserved
+			const scale4 = new Vector3().setFromMatrixScale( m4 );
+			assert.ok( vectorEquals( scale4, new Vector3( 2, 3, 4 ), 0.001 ), 'Scale preserved after 180° rotation' );
+
+			// Test 5: Chaining - setRotation returns this
+			const m5 = new Matrix4().identity();
+			const result = m5.setRotation( qIdentity );
+			assert.ok( result === m5, 'setRotation returns `this` for chaining' );
+
+			// Test 6: Complex rotation with non-uniform scale and position
+			const pos = new Vector3( 123, 321, 234 );
+			const m6 = new Matrix4().compose(
+				pos,
+				new Quaternion().setFromEuler( new Euler( 0.5, 0.3, 0.2 ) ),
+				new Vector3( 1.5, 2.5, 3.5 )
+			);
+			const originalScale = new Vector3().setFromMatrixScale( m6 );
+			const newRotation = new Quaternion().setFromEuler( new Euler( 1.0, 0.5, 0.3 ) );
+			m6.setRotation( newRotation );
+
+			const newScale = new Vector3().setFromMatrixScale( m6 );
+			assert.ok( vectorEquals( originalScale, newScale ), 'Complex rotation preserves non-uniform scale' );
+			const newPos = new Vector3().setFromMatrixPosition( m6 );
+			assert.ok( vectorEquals( pos, newPos ), 'Complex rotation preserves position' );
+
+			// Verify rotation was actually changed by comparing against expected result
+			const expected = new Matrix4().compose(
+				pos,
+				newRotation,
+				originalScale
+			);
+			assert.ok( matrixEquals4( m6, expected, 0.001 ), 'Rotation was correctly applied with preserved scale' );
+
+		} );
+
+		QUnit.test( 'setColumn', ( assert ) => {
+
+
+			const baseMat = new Matrix4().set( 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 );
+
+			{
+
+				// number args
+				const mat = baseMat.clone();
+				const v3 = new Vector3( - 1, - 2, - 3 );
+				const expected = new Matrix4().set( - 1, 1, 2, 3, - 2, 5, 6, 7, - 3, 9, 10, 11, 12, 13, 14, 15 );
+
+				mat.setColumn( 0, v3.x, v3.y, v3.z );
+				assert.ok( matrixEquals4( mat, expected ), 'setColumn(number, number, number) Passed' );
+
+			}
+
+			{
+
+				// vector3 arg
+				const mat = baseMat.clone();
+				const expected = new Matrix4().set( - 1, 1, 2, 3, - 2, 5, 6, 7, - 3, 9, 10, 11, 12, 13, 14, 15 );
+
+				const v3 = new Vector3( - 1, - 2, - 3 );
+
+				mat.setColumn( 0, v3 );
+				assert.ok( matrixEquals4( mat, expected ), 'setColumn(Vector3) Passed' );
+
+			}
+
+
+			{
+
+				// vector4 arg
+				const v4 = new Vector4( - 1, - 2, - 3, - 4 );
+				const mat = baseMat.clone();
+				const expected = new Matrix4().set( - 1, 1, 2, 3, - 2, 5, 6, 7, - 3, 9, 10, 11, - 4, 13, 14, 15 );
+				mat.setColumn( 0, v4 );
+				assert.ok( matrixEquals4( mat, expected ), 'setColumn(Vector4) Passed!' );
+
+			}
+
 
 		} );
 

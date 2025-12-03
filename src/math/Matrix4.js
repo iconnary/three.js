@@ -683,6 +683,100 @@ class Matrix4 {
 	}
 
 	/**
+	 * Set the scale (lengths) of the three basis vectors of this matrix.
+	 * @param {number|Vector3} x The x component of the scale vector or alternatively the vector object.
+	 * @param {number} y - The y component of the vector.
+	 * @param {number} z - The z component of the vector.
+	 * @returns {Matrix4} - A reference to this matrix.
+	 */
+	setScale( x, y, z ) {
+
+		const scale = x.isVector3 ? x : _v1.set( x, y, z );
+		this.extractBasis( _x, _y, _z );
+		_x.setLength( scale.x );
+		_y.setLength( scale.y );
+		_z.setLength( scale.z );
+
+		this.setColumn( 0, _x );
+		this.setColumn( 1, _y );
+		this.setColumn( 2, _z );
+
+		return this;
+
+	}
+
+	/**
+	 * Rotates the three basis vectors of this matrix to match the given quaternion,
+	 * while preserving their current lengths (scale).  Does not modify position.
+	 *
+	 * @param {Quaternion} q - The quaternion representing the desired rotation.
+	 * @returns {Matrix4} - A reference to this matrix.
+	 */
+	setRotation( q ) {
+
+		// Extract current basis vectors (including scale)
+		this.extractBasis( _x, _y, _z );
+
+		// Get current scales
+		const sx = _x.length();
+		const sy = _y.length();
+		const sz = _z.length();
+
+		// Create rotation matrix from quaternion
+		_m1.makeRotationFromQuaternion( q );
+
+		// Extract rotated basis vectors (unit length)
+		_m1.extractBasis( _x, _y, _z );
+
+		// Scale to original lengths
+		_x.multiplyScalar( sx );
+		_y.multiplyScalar( sy );
+		_z.multiplyScalar( sz );
+
+		// Set the columns back
+		this.setColumn( 0, _x );
+		this.setColumn( 1, _y );
+		this.setColumn( 2, _z );
+
+		return this;
+
+	}
+
+	/**
+	 * Set the matrix column at `index` to the given vector
+	 * @param {number} index column index
+	 * @param {number|Vector3|Vector4} x The x component of the vector or alternatively the vector object.
+	 * @param {number} y - The y component of the vector.
+	 * @param {number} z - The z component of the vector.
+	 * @param {number} w - The w component of the vector.  If not provided, the final element of the column will not be modified.
+	 * @returns {Matrix4} - A reference to this matrix.
+	 */
+	setColumn( index, x, y, z, w ) {
+
+		let column;
+		if ( x.isVector3 || x.isVector4 ) {
+
+			column = x.toArray();
+
+		} else {
+
+			column = [ x, y, z ];
+			if ( ! Number.isNaN( w ) ) column.push( w );
+
+		}
+
+		const te = this.elements;
+		for ( let i = 0; i < column.length; i ++ ) {
+
+			te[ ( index * 4 ) + i ] = column[ i ];
+
+		}
+
+		return this;
+
+	}
+
+	/**
 	 * Inverts this matrix, using the [analytic method](https://en.wikipedia.org/wiki/Invertible_matrix#Analytic_solution).
 	 * You can not invert with a determinant of zero. If you attempt this, the method produces
 	 * a zero matrix instead.
@@ -846,10 +940,10 @@ class Matrix4 {
 
 		this.set(
 
-			 c, 0, s, 0,
-			 0, 1, 0, 0,
+			c, 0, s, 0,
+			0, 1, 0, 0,
 			- s, 0, c, 0,
-			 0, 0, 0, 1
+			0, 0, 0, 1
 
 		);
 
